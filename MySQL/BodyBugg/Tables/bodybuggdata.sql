@@ -1,0 +1,37 @@
+CREATE TABLE bodybugg.bodybuggdata
+    (
+        EPOCH       INT(10),
+        TIME        TIMESTAMP,
+        MOVTSKIN    INT(10),
+        MOVACCTR    INT(10),
+        MOVACCLO    INT(10),
+        MOVACCFW    INT(10),
+        MOVTCOV     INT(10),
+        MADACCTR    INT(10),
+        MADACCLO    INT(10),
+        COMPGSR     INT(10),
+        PEDO3       INT(10),
+        PLATEAU     INT(10),
+        TRPEAKS     INT(10),
+        MOVTHETA    INT(10),
+        MADTHETA    INT(10),
+        TCOUNT      INT(10),
+        LOGSWEEP    INT(10),
+        LCOUNT      INT(10),
+        T0CROSS     INT(10),
+        L0CROSS     INT(10),
+        PEDO3TOE    INT(10),
+        LOPEAKS     INT(10),
+        MOVVBAT     INT(10),
+        MADACCFW    INT(10),
+        FCOUNT      INT(10),
+        F0CROSS     INT(10),
+        FWPEAKS     INT(10),
+        MOVGSR      INT(10),
+        EE          INT(10),
+        MAD3D       INT(10),
+        SWEEP3D     INT(10),
+        F90RANGE    INT(10)
+    );
+
+ALTER TABLE BODYBUGG.BODYBUGGDATA ADD CONSTRAINT PK_BBD_EPOCH PRIMARY KEY (epoch);
