@@ -1,20 +1,14 @@
-#!/usr/bin/env python
-#
-# BodyMedia ArmBand Device Library
-#
-# July 2009 by Centi Benzo centibenzo@gmail.com
-#
 
-import string
-import struct
-import serial
-import sys
 import cPickle
 import getopt
-import time
 import math
-from numpy import array, ndarray, fromstring, zeros, resize
 import numpy
+import serial
+import string
+import struct
+import sys
+import time
+from numpy import array, ndarray, fromstring, zeros, resize
 
 try:
     from PIL import Image
@@ -634,156 +628,12 @@ def MemPrettyPrint(mem, bank=None):
                 HexPrintColor(mem.get(b[0], i, 46), "%02X")
 
 
-### OBSOLETE
-def ReadStruct1(d):
-    # Structure 1 (seen at 0x201 offset 0), contains 5 records
-    #         Exact copy of this structure also seen at 0x201534
-    # (hypothesis - data layout information), record length 22
-    #
-    # 1 byte unknown, 0x0 except for first entry of 0x1
-    # 1 byte record ID number(?)
-    # 9 byte null-terminated string field
-    # 11 byte data field
-    # 16-bit LSB "Div" field ("div" label from HTTP)
-    # 8 1-byte channel numbers (from HTTP)
-    # 1 byte record size number
-    r=[]
-    for i in range(0,5):
-        v = (ord(d[0]), ord(d[1]), d[2:11].rstrip('\x00'))
-        div = HexStringToInt(d[12] + d[11])
-        chan = [ord(x) for x in d[13:21]]
-        sz = ord(d[21])
-        v = (v[0], v[1], v[2], div, chan, sz)
-        r.append(v)
-        d = d[22:]
-    return r
-
-
-### OBSOLETE
-def ReadStruct2(d):
-    # Structure 2 - 0x201 offset 106
-    #
-    # String or column name list
-    # Records of length 10
-    # 9 byte string null terminated (pad?), 1 byte sequential ID or column number(?)
-    # We don't know how to determine list length.    We assume fixed 30 entries
-    # A fresh device will have no table.    We check.
-    if d[0] == '\xFF':
-        sys.stderr.write("ReadStruct2: No name list found - the device contains no data(?)\n")
-        return []
-    prefix=d[0:8] # TODO: Unidentified fields
-    d=d[8:]
-    r=[] # result
-    for i in range(0,42):
-        #r.append((ord(d[10*i + 9]), d[10*i:10*i + 8].rstrip('\x00')))
-        r.append((ord(d[10*i]), d[10*i+1:10*i + 9].rstrip('\x00')))
-    offset = 42*10
-    s1= ReadStruct1(d[offset:])
-    offset += 5*22 + 1    # Always 5 records
-    unk = d[offset] # Always 0x02 ??
-    offset += 1
-    timestamp=    HexStringToIntLSB( d[offset:offset+4] )
-    return {'unk1':prefix, 'fields':r, 'layout':s1, 'unk2':unk, 'timestamp':timestamp}
-
-
-### OBSOLETE
-def ReadStruct4(d,makeArray=True):
-    # Structure 4 (0x201: 810 - most of memory)
-    # Primary data structure, length 46
-    # Recognizable by vertical hex 10, 11, 12, 13
-    #
-    # Sub-Structure 4.10, length 13 
-    # 1 byte == 10
-    # 2 bytes == 2 byte MSB integer, usually increasing (but not always)
-    # 
-    # Sub-Structure 4.11, length 12
-    #
-    # Sub-Structure 4.12, length 12
-    #
-    # Sub-Structure 4.13, length 9
-    r=[]
-    ld=len(d)
-    # Scan for starting row - structure between s2 and s4 is occasionally a
-    # different size, and I'm not sure of how to parse it.
-    start=None
-    for i in range(0, min(46, ld-46)):
-        if d[i]=='\x10' and d[i+13]=='\x11' and d[i+13+12]=='\x12' and d[i+13+12+12]=='\x13':
-            start=i
-            break
-    if start == None:
-        sys.stderr.write("Cannot find any more sensor data on device")
-        return (r, 0)
-    if start != 0:
-        sys.stderr.write("Alignment shifted by "+str(start)+" bytes\n")
-    d=d[start:]
-    icorrection=0
-    for i in range(0, ld, 46):
-        if len(d)==0:
-            break
-        if d[0] != '\x10' and d[0] != '\x35':
-            sys.stderr.write("INFO: Struct4 Lost 0x10 marker after %i bytes" % (ld - len(d)) + " on byte 0x%x\n" % ord(d[0]))
-            HexPrintMod(d, 46, size=46*3)
-            break
-        if d[0] == '\x35': # Timestamp
-            s35=d[0:11]
-            sys.stderr.write("Timestamp: %x " % HexStringToIntLSB(s35[-4:]) + "\n")
-            s35 = [ord(x) for x in s35]
-            icorrection += 11
-        else:
-            s35=[0x35]+[0]*10
-        s10 = d[0:13]
-        s10 = [ord(x) for x in s10]
-        s11 = d[13:25]
-        s11 = [ord(x) for x in s11]
-        s12 = d[25:37]
-        s12 = [ord(x) for x in s12]
-        s13 = d[37:46]
-        s13 = [ord(x) for x in s13]
-        if makeArray:
-            r.append(s10 + s11 + s12 + s13 + s35)
-        else:
-            r.append([s10, s11, s12, s13])
-        d=d[46:]
-    if makeArray:
-        return (array(r,dtype='uint8'), i)
-    else:
-        return (r, i)
-
-
 class Table:
     def __init__(self):
         s1=None
         s2=None
         s3=None
         s4=None
-
-
-### UNUSED
-def ReadFields(packets):
-    parsed = ParsePacket2(packets)
-    d=dict()
-    for x in parsed:
-        if x.has_key('bank') and x['bank'] == 0xb and x['reqbit'] == 0:
-            d[ord(x['body'][0])] = x['body'][1:].rstrip('\x00')
-    return d
-
-
-### OBSOLETE
-def ReadPackedData(fields, data):
-    h = data.tostring().encode('hex')
-    pos=0
-    v=[]
-    for i in range(0,len(fields)):
-        if fields[i][0:2] == 'ID':
-            # padded to byte aligned
-            if (pos % 2) == 1:
-                pos += 1
-            v.append(int(h[pos:pos+2],16))
-            pos += 2
-        else:
-            v.append(int("0"+h[pos:pos+3],16))
-            pos += 3
-    return v
 
 
 def FindAll(mem, sub, before=16, after=16, mod=32):
@@ -887,59 +737,6 @@ def ReadAllRecords(mem):
         offset += r[1]
 
 
-### OBSOLETE
-def ReadAllStruct(mem):
-    # mem may be an array, a string, or a list of packets
-    #
-    # Structure 3 (0x201: 658 - ~700 offset)
-    # No clear fixed record sizes, oddball info?
-    """ Attempt to parse a data table header"""
-    if type(mem) == ndarray:
-        mem= mem.tostring()
-    elif type(mem) == list:
-        packets = mem
-        mem = AssembleDataFromPackets(packets)
-        mem = mem.tostring()
-    tab=Table()
-    tab.s1=ReadStruct1(mem[0:110])
-    offset = 106
-    tab.s2=[]
-    tab.s4=[]
-    while True:
-        s2len=750
-        s2 = ReadStruct2(mem[offset:offset+s2len])
-        offset += s2len
-        print offset
-        (s4, next) = ReadStruct4(mem[offset:])
-        print offset, next
-        offset += next
-        if next != 0:
-            tab.s2.append(s2)
-            tab.s4.append(s4)
-        else:
-            break
-    if packets != None:
-        tab.fields = ReadFields(packets)
-        tab.layout = []
-        tab.data = []
-        for r in tab.s1:
-            if r[3] != 0:
-                tab.layout.extend(["ID_"+str(r[1])] + [tab.fields[i] for i in r[4] if i < 42])
-        for i in range(0, len(tab.s4)):
-            tab.data.append([])
-            for r in tab.s4[i]:
-                tab.data[i].append(ReadPackedData(tab.layout, r))
-    return tab
-
-
-### OBSOLETE
-def Struct1ToTabDelim(table):
-    out=[["N","TYPE_ID","NAME","DIV"] + ["CHAN"]*8 + ["BYTES"]]
-    for r in table:
-        out.append([r[0], r[1], r[2], r[3]] + [x for x in r[4]] + [r[5]])
-    return out
-
-
 def WriteTabDelim(t,fhandle=None):
     if fhandle == None:
         fhandle=sys.stdout
@@ -947,30 +744,6 @@ def WriteTabDelim(t,fhandle=None):
         for f in r:
             fhandle.write(str(f)+"\t")
         fhandle.write("\n")
-
-
-### DEPRECATED
-def SaveStructTabDelim2(packets,fname=None):
-    table=ReadAllStruct(packets)
-    if fname != None:
-        # Write out
-        f=open(fname,"w")
-    else:
-        f=sys.stdout
-    WriteTabDelim( Struct1ToTabDelim(table.s1), f )
-    for i in range(0, len(table.data)):
-        f.write("UNK\t" + table.s2[i]['unk1'].encode('hex') + "\n") # timestamp?
-        f.write(string.join(["EPOCH", "TIME"] + table.layout, "\t") + "\n")
-        ts = table.s2[i]['timestamp'] # Timestamp
-        tdata = [[ts + 60*y, time.ctime(ts+60*y)] + table.data[i][y] for y in range(0, len(table.data[i]))]
-        WriteTabDelim( tdata, f )
-        #WriteTabDelim( table.data[i], f )
-    sys.stdout = f
-    PrintPacket2([x for x in packets if x[12] != '\x02'],color=False)
-    sys.stdout = sys.__stdout__
-    if fname != None:
-        f.close()
-    return
 
 
 def GetFields(type1Layout, type6Names):
@@ -1079,7 +852,6 @@ def TryAndTest(ser, packet):
 
 
 ### Main function(s) ###
-
 def main(argv=None):
     if argv == None:
         argv=sys.argv
@@ -1121,7 +893,7 @@ def PrintUsage(argv, fhandle=None):
 
 
 def main(argv=None):
-    sys.stderr.write("""THIS CODE IS DECLARED BY THE AUTHOR TO BE IN THE PUBLIC DOMAIN.\nNO WARRANTY EXPRESSED OR IMPLIED OF ANY KIND IS PROVIDED.\n""")
+    sys.stderr.write("""**** STARTING ****\n""")
     if argv is None:
         argv = sys.argv
     try:
@@ -1222,5 +994,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
